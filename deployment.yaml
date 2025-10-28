@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alg2-todo-app-deploy
+  labels:
+    app: alg2-todo-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: alg2-todo-app
+  template:
+    metadata:
+      labels:
+        app: alg2-todo-app
+    spec:
+      containers:
+      - name: todo-app-container
+        image: "PLACEHOLDER_ECR_REPO_URL:latest"
+        ports:
+        - containerPort: 3000
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: alg2-todo-app-svc
+spec:
+  type: LoadBalancer
+  selector:
+    app: alg2-todo-app
+  ports:
+  - port: 80
+    targetPort: 3000
