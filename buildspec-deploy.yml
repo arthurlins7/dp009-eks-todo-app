@@ -19,17 +19,17 @@ phases:
       - kubectl get nodes
       - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       
-      # --- CORREÇÃO AQUI ---
-      # Envolvemos o comando inteiro em aspas simples para 
-      # forçar o YAML a tratá-lo como uma string.
+      # --- CORREÇÃO 1 (da vez passada) ---
+      # Força o YAML a tratar esta linha como string
       - 'FULL_IMAGE_URI="${ECR_REPO_URL}:${IMAGE_TAG}"'
       
-      - echo "Fazendo deploy da imagem: $FULL_IMAGE_URI"
+      # --- CORREÇÃO 2 (a nova) ---
+      # Força o YAML a tratar esta linha como string também
+      - 'echo "Fazendo deploy da imagem: $FULL_IMAGE_URI"'
 
   build:
     commands:
       - echo "Atualizando o placeholder da imagem no deployment.yaml..."
-      # O 'sed' está seguro, pois o ':' está dentro das aspas.
       - sed -i "s|PLACEHOLDER_ECR_REPO_URL:latest|$FULL_IMAGE_URI|" deployment.yaml
       - echo "--- deployment.yaml atualizado ---"
       - cat deployment.yaml
