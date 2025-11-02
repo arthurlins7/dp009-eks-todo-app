@@ -1,31 +1,38 @@
 version: 0.2
 
+# -----------------------------------------------------------------
+# Responsabilidade deste arquivo:
+# 1. Fazer login no ECR
+# 2. Buildar a imagem Docker
+# 3. Enviar a imagem Docker para o ECR
+#
+# (Ele NÃO deve saber sobre o EKS ou kubectl)
+# -----------------------------------------------------------------
+
 phases:
   pre_build:
     commands:
-      - echo "Iniciando o build..."
-      - ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-      - REGION=$(aws configure get region)
-      - echo "Conta: $ACCOUNT_ID, Região: $REGION"
-
-      - aws eks update-kubeconfig --region $REGION --name $EKS_CLUSTER_NAME
-
-      - aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com
-
+      - echo "Iniciando o build da imagem..."
+      # 1. Faz login no ECR
+      #    Usamos as variáveis de ambiente seguras ($AWS_REGION, $AWS_ACCOUNT_ID)
+      #    que definimos no 'codebuild.tf'.
+      - echo "Logging in to Amazon ECR..."
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+      
+      # 2. Define a tag da imagem
+      #    Usamos o hash do commit do Git como a tag.
       - IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:0:7}
-
+  
   build:
     commands:
+      # 3. Builda a imagem Docker
+      #    A variável $ECR_REPO_URL vem do 'codebuild.tf'.
       - echo "Rodando Docker build..."
       - docker build -t $ECR_REPO_URL:$IMAGE_TAG .
-
+  
   post_build:
     commands:
+      # 4. Envia a imagem para o ECR
       - echo "Rodando Docker push..."
       - docker push $ECR_REPO_URL:$IMAGE_TAG
-
-      - echo "Atualizando o deployment.yaml..."
-      - sed -i "s|PLACEHOLDER_ECR_REPO_URL.*|$ECR_REPO_URL:$IMAGE_TAG|" deployment.yaml
-
-      - echo "Aplicando o deployment no EKS..."
-      - kubectl apply -f deployment.yaml
+      - echo "Push para ECR concluído."
