@@ -9,34 +9,25 @@ phases:
       - mv ./kubectl /usr/local/bin/kubectl
       - kubectl version --client
 
-  # --- CORREÇÃO AQUI (Fase 'pre_build' inteira substituída) ---
   pre_build:
     commands:
       - echo "Configurando kubeconfig manualmente..."
-      # 1. Decodifica o certificado (que vem em base64) e salva em um arquivo
       - echo $EKS_CLUSTER_CA_DATA | base64 -d > /tmp/ca.crt
       
-      # 2. Define o cluster no kubeconfig
       - kubectl config set-cluster $EKS_CLUSTER_NAME --server=$EKS_CLUSTER_ENDPOINT --certificate-authority=/tmp/ca.crt --embed-certs=true
       
-      # 3. Define as credenciais para usar o AWS IAM (usando a role do CodeBuild)
       - kubectl config set-credentials codebuild --exec-api-version=client.authentication.k8s.io/v1beta1 --exec-command=aws --exec-arg=eks --exec-arg=get-token --exec-arg=--cluster-name --exec-arg=$EKS_CLUSTER_NAME
       
-      # 4. Define o "contexto" (junta o cluster e as credenciais)
       - kubectl config set-context $EKS_CLUSTER_NAME --cluster=$EKS_CLUSTER_NAME --user=codebuild
       
-      # 5. Ativa o contexto
       - kubectl config use-context $EKS_CLUSTER_NAME
       
-      # 6. Testa a conexão (é aqui que o 'aws-auth' que você editou será usado)
       - echo "Testando conexão com o cluster..."
       - kubectl get nodes
       
-      # 7. Prepara as variáveis de imagem (como antes)
       - IMAGE_TAG=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - 'FULL_IMAGE_URI="${ECR_REPO_URL}:${IMAGE_TAG}"'
       - 'echo "Fazendo deploy da imagem: $FULL_IMAGE_URI"'
-  # --- FIM DA CORREÇÃO ---
 
   build:
     commands:
