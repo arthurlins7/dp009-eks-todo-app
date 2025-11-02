@@ -1,0 +1,62 @@
+version: 0.2
+
+# -----------------------------------------------------------------
+# Responsabilidade deste arquivo:
+# 1. Instalar o kubectl
+# 2. Conectar-se ao cluster EKS
+# 3. Substituir o placeholder no 'deployment.yaml'
+# 4. Aplicar o 'deployment.yaml' no cluster
+# -----------------------------------------------------------------
+
+phases:
+  install:
+    runtime-versions:
+      docker: 18 # Necessário para a AWS CLI v2
+    commands:
+      - echo "Instalando kubectl..."
+      - curl -o kubectl https://s3.us-west-2.amazonaws.com/amazon-eks/1.23.7/2022-06-29/bin/linux/amd64/kubectl
+      - chmod +x ./kubectl
+      - mv ./kubectl /usr/local/bin/kubectl
+      - kubectl version --client
+
+  pre_build:
+    commands:
+      - echo "Conectando ao cluster EKS..."
+      # Usa as variáveis de ambiente ($AWS_REGION, $EKS_CLUSTER_NAME) 
+      # que definimos no 'codebuild.tf' (projeto 'app_deploy')
+      - aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
+      
+      - echo "Verificando conexão..."
+      - kubectl get nodes
+
+      # Define as variáveis da imagem. DEVE ser o MESMO hash do commit da etapa de Build
+      - IMAGE_TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION:0:7}
+      - FULL_IMAGE_URI="${ECR_REPO_URL}:${IMAGE_TAG}"
+      - echo "Fazendo deploy da imagem: $FULL_IMAGE_URI"
+
+  build:
+    commands:
+      - echo "Atualizando o placeholder da imagem no deployment.yaml..."
+      
+      # Este comando 'sed' encontra o seu placeholder e o substitui pela imagem real
+      - sed -i "s|PLACEHOLDER_ECR_REPO_URL:latest|$FULL_IMAGE_URI|" deployment.yaml
+      
+      - echo "--- deployment.yaml atualizado ---"
+      - cat deployment.yaml
+      - echo "----------------------------------"
+
+      - echo "Aplicando manifestos no EKS..."
+      # Aplica o arquivo inteiro (Deployment + Service)
+      - kubectl apply -f deployment.yaml
+
+  post_build:
+    commands:
+      - echo "Aguardando o rollout do deployment..."
+      
+      # Verifica o status do DEPLOYMENT (o nome 'alg2-todo-app-deploy' vem do seu YAML)
+      - kubectl rollout status deployment/alg2-todo-app-deploy
+      
+      - echo "Deploy concluído com sucesso!"
+      - echo "Verificando o Service..."
+      # Exibe o SERVICE (o nome 'alg2-todo-app-svc' vem do seu YAML)
+      - kubectl get service alg2-todo-app-svc
